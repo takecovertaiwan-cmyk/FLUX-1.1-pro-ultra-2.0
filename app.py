@@ -232,7 +232,7 @@ def generate():
     if not prompt:
         return jsonify({"error": "Prompt 為必填項"}), 400
 
-    try:
+try:
     # === E1-0. 初始化生成參數 ===
     def safe_int(v, default=1024):
         try:
@@ -419,6 +419,7 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
 
