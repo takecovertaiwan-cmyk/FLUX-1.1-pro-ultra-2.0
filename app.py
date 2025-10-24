@@ -33,9 +33,55 @@ if not os.path.exists(static_folder): os.makedirs(static_folder)
 app.config['UPLOAD_FOLDER'] = static_folder
 
 # === C1. 工具函式 ===
+import json, hashlib
+
 def sha256_bytes(b: bytes) -> str:
     """回傳資料的 SHA256 雜湊值 (hex 字串)"""
     return hashlib.sha256(b).hexdigest()
+
+def sha256_text(s: str) -> str:
+    """將文字轉為 UTF-8 bytes 並回傳 SHA256 雜湊"""
+    return sha256_bytes(s.encode("utf-8"))
+
+def compute_image_hash_from_b64(b64_str: str) -> str:
+    """針對 Base64 圖片內容計算雜湊"""
+    return sha256_text(b64_str)
+
+def compute_step_hash(ts_iso: str, img_b64: str, prompt: str, seed: int) -> dict:
+    """
+    計算四重雜湊 + Step Hash
+    輸入：
+        ts_iso  - 時間戳記字串 (ISO 格式)
+        img_b64 - 圖片 base64 字串
+        prompt  - 提示詞
+        seed    - 隨機種子
+    輸出：
+        dict，包含四重雜湊與組合後的 step_hash
+    """
+    ts_hash     = sha256_text(ts_iso)
+    img_hash    = compute_image_hash_from_b64(img_b64)
+    prompt_hash = sha256_text(prompt or "")
+    seed_hash   = sha256_text(str(seed))
+
+    # 四重雜湊整合為 step_hash（順序固定）
+    payload = json.dumps(
+        {
+            "timestamp_hash": ts_hash,
+            "image_hash": img_hash,
+            "prompt_hash": prompt_hash,
+            "seed_hash": seed_hash
+        },
+        sort_keys=True, ensure_ascii=False
+    )
+    step_hash = sha256_text(payload)
+
+    return {
+        "timestamp_hash": ts_hash,
+        "image_hash": img_hash,
+        "prompt_hash": prompt_hash,
+        "seed_hash": seed_hash,
+        "step_hash": step_hash
+    }
 
 # === C2. PDF 報告類別 ===
 class WesmartPDFReport(FPDF):
@@ -271,3 +317,4 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
