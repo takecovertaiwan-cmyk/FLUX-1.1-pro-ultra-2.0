@@ -159,29 +159,35 @@ class WesmartPDFReport(FPDF):
             self.cell(45, 10, label, align="L")
             self.multi_cell(0, 10, str(value), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
 
-    # === C2-7. 生成任務細節頁 ===
-    def create_generation_details_page(self, proof_data):
-        self.add_page()
-        self.chapter_title("一、生成任務基本資訊")
-        snapshots = proof_data["event_proof"]["snapshots"]
-        self.chapter_body(f"版本數：{len(snapshots)}")
+# === C2-7. 生成任務細節頁 ===
+def create_generation_details_page(self, proof_data):
+    self.add_page()
+    self.chapter_title("一、生成任務基本資訊")
 
-        self.chapter_title("二、各版本快照與雜湊資訊")
-        for snap in snapshots:
-            self.chapter_body(f"版本索引：{snap['version_index']}")
-            self.chapter_body(f"時間戳記(UTC)：{snap['timestamp_utc']}")
-            self.chapter_body(f"Prompt：{snap['prompt']}")
-            self.chapter_body(f"Seed：{snap['seed']}")
+    # 防呆檢查：若結構不完整則提前返回
+    if not proof_data.get("event_proof") or not proof_data["event_proof"].get("snapshots"):
+        self.chapter_body("⚠️ 無法載入封存資料。請確認 finalize_session 是否執行成功。")
+        return
 
-            # 四重雜湊顯示
-            self.chapter_body(f"時間戳雜湊 (timestamp_hash)：{snap['timestamp_hash']}")
-            self.chapter_body(f"圖片雜湊 (image_hash)：{snap['image_hash']}")
-            self.chapter_body(f"提示詞雜湊 (prompt_hash)：{snap['prompt_hash']}")
-            self.chapter_body(f"種子雜湊 (seed_hash)：{snap['seed_hash']}")
+    snapshots = proof_data["event_proof"]["snapshots"]
+    self.chapter_body(f"版本數：{len(snapshots)}")
 
-            # Step Hash 取代原 Trace Token
-            self.chapter_body(f"Step Hash (step_hash)：{snap['step_hash']}")
-            self.chapter_body(" ")
+    self.chapter_title("二、各版本快照與雜湊資訊")
+    for snap in snapshots:
+        self.chapter_body(f"版本索引：{snap.get('version_index', 'N/A')}")
+        self.chapter_body(f"時間戳記(UTC)：{snap.get('timestamp_utc', 'N/A')}")
+        self.chapter_body(f"Prompt：{snap.get('prompt', 'N/A')}")
+        self.chapter_body(f"Seed：{snap.get('seed', 'N/A')}")
+
+        # 四重雜湊顯示（若缺值則顯示 N/A）
+        self.chapter_body(f"時間戳雜湊 (timestamp_hash)：{snap.get('timestamp_hash', 'N/A')}")
+        self.chapter_body(f"圖片雜湊 (image_hash)：{snap.get('image_hash', 'N/A')}")
+        self.chapter_body(f"提示詞雜湊 (prompt_hash)：{snap.get('prompt_hash', 'N/A')}")
+        self.chapter_body(f"種子雜湊 (seed_hash)：{snap.get('seed_hash', 'N/A')}")
+
+        # Step Hash 取代原 Trace Token
+        self.chapter_body(f"Step Hash (step_hash)：{snap.get('step_hash', 'N/A')}")
+        self.chapter_body(" ")
 
     # === C2-8. 驗證頁 ===
     def create_conclusion_page(self, proof_data):
@@ -378,6 +384,7 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
 
