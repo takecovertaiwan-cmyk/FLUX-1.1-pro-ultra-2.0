@@ -276,6 +276,9 @@ def generate():
             "version": len(session_previews)  # 新增版本索引供前端顯示
         })
 
+except Exception as e:
+    return jsonify({"error": str(e)}), 500
+
 # === E2. /finalize_session: 封存並生成 JSON ===
 @app.route('/finalize_session', methods=['POST'])
 def finalize_session():
@@ -375,6 +378,7 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
 
