@@ -95,8 +95,11 @@ def index():
 # === B2. 生成影像 ===
 @app.route('/generate', methods=['POST'])
 def generate():
-    # B2-1. 接收請求
-    user_prompt = request.form.get('prompt')
+    # B2-1. 接收請求（含防呆檢查）
+    user_prompt = request.form.get('prompt', '').strip()
+    if not user_prompt:
+       return jsonify({'error': 'missing prompt field'}), 400
+
     seed = request.form.get('seed', str(uuid.uuid4()))
     model_name = request.form.get('model', 'default-model')
 
@@ -193,3 +196,4 @@ def static_download(filename):
 # === C2. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
