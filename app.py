@@ -233,6 +233,10 @@ def generate():
         return jsonify({"error": "Prompt 為必填項"}), 400
 
     try:
+        # === E1-0. 初始化生成參數 ===
+        seed = int(data.get('seed', random.randint(1, 10**9)))
+        width, height = int(data.get('width', 1024)), int(data.get('height', 1024))
+        
         # === E1-1. 呼叫 FLUX API ===
         endpoint = "https://api.bfl.ai/v1/flux-pro-1.1-ultra"
         headers = {
@@ -386,6 +390,7 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
 
