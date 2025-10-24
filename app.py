@@ -265,15 +265,19 @@ def generate():
         Image.open(io.BytesIO(img_bytes)).save(filepath)
 
         session_previews.append({
-            "prompt": prompt, "seed": seed, "model": "flux-pro-1.1-ultra",
+            "prompt": prompt,
+            "seed": seed,
+            "model": "flux-pro-1.1-ultra",
             "filepath": filepath,
             "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()
         })
 
-        return jsonify({"success": True, "preview_url": url_for('static_preview', filename=filename)})
-
-    except Exception as e:
-        return jsonify({"error": str(e)})
+        # === E1-4. 回傳結果（新增版本號） ===
+        return jsonify({
+            "success": True,
+            "preview_url": url_for('static_preview', filename=filename),
+            "version": len(session_previews)  # 新增版本索引供前端顯示
+        })
 
 # === E2. /finalize_session: 封存並生成 JSON ===
 @app.route('/finalize_session', methods=['POST'])
@@ -374,6 +378,7 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
 
