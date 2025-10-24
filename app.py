@@ -251,42 +251,65 @@ def finalize_session():
 
     try:
         snapshots = []
+        step_hashes = []
+
         for i, p in enumerate(session_previews):
-            with open(p['filepath'], 'rb') as f: b64 = base64.b64encode(f.read()).decode()
-            snapshots.append({
+            with open(p['filepath'], 'rb') as f:
+                img_b64 = base64.b64encode(f.read()).decode('utf-8')
+
+            # 四重雜湊 + Step Hash
+            hashes = compute_step_hash(
+                ts_iso=p['timestamp_utc'],
+                img_b64=img_b64,
+                prompt=p['prompt'],
+                seed=p['seed']
+            )
+
+            snapshot = {
                 "version_index": i + 1,
                 "timestamp_utc": p['timestamp_utc'],
-                "snapshot_hash": sha256_bytes(b64.encode()),
                 "prompt": p['prompt'],
                 "seed": p['seed'],
                 "model": p['model'],
-                "content_base64": b64
-            })
+                "content_base64": img_b64,
 
-        report_id, trace_token = str(uuid.uuid4()), str(uuid.uuid4())
-        final_event_hash = sha256_bytes(json.dumps({"snapshots": snapshots}, sort_keys=True).encode())
+                # 新增：四重雜湊與 Step Hash
+                "timestamp_hash": hashes["timestamp_hash"],
+                "image_hash": hashes["image_hash"],
+                "prompt_hash": hashes["prompt_hash"],
+                "seed_hash": hashes["seed_hash"],
+                "step_hash": hashes["step_hash"]
+            }
+            snapshots.append(snapshot)
+            step_hashes.append(hashes["step_hash"])
+
+        # 最終事件雜湊：按版本順序累積 Step Hash
+        final_event_hash = sha256_text(json.dumps({"steps": step_hashes}, sort_keys=True, ensure_ascii=False))
 
         proof = {
-            "report_id": report_id,
+            "report_id": str(uuid.uuid4()),
             "issuer": "WesmartAI Inc.",
             "applicant": applicant,
             "issued_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "event_proof": {
-                "trace_token": trace_token,
+                # 取代 trace_token：不再輸出 trace_token
                 "final_event_hash": final_event_hash,
                 "snapshots": snapshots
             },
             "verification": {"verify_url": f"https://wesmart.ai/verify?hash={final_event_hash}"}
         }
 
-        path = os.path.join(app.config['UPLOAD_FOLDER'], f"proof_event_{report_id}.json")
-        with open(path, 'w', encoding='utf-8') as f: json.dump(proof, f, ensure_ascii=False, indent=2)
+        path = os.path.join(app.config['UPLOAD_FOLDER'], f"proof_event_{proof['report_id']}.json")
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(proof, f, ensure_ascii=False, indent=2)
+
         latest_proof_data = proof
-        return jsonify({"success": True})
+        # 同步回傳下載原圖連結（維持原行為）
+        image_urls = [url_for('static_download', filename=os.path.basename(p['filepath'])) for p in session_previews]
+        return jsonify({"success": True, "image_urls": image_urls})
 
     except Exception as e:
-        return jsonify({"error": str(e)})
-
+        return jsonify({"error": str(e)}), 500
 # === E3. /create_report: PDF 報告 ===
 @app.route('/create_report', methods=['POST'])
 def create_report():
@@ -317,4 +340,5 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
