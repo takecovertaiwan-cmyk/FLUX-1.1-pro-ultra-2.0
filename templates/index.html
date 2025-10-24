@@ -1,214 +1,105 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WesmartAI<br>圖像生成及創作歷程存證系統</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 2em; background-color: #f4f6f8; color: #333; }
-        .container { max-width: 900px; margin: auto; background: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        h1, h2 { color: #1a237e; text-align: center; }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; margin-bottom: 1.5em; }
-        .form-group { display: flex; flex-direction: column; }
-        .full-width { grid-column: 1 / -1; }
-        label { font-weight: 600; margin-bottom: 0.5em; color: #555; }
-        input, textarea, button { font-size: 1em; padding: 0.8em; border-radius: 6px; border: 1px solid #ccc; }
-        button { background-color: #3f51b5; color: white; border: none; cursor: pointer; font-weight: bold; transition: background-color 0.2s ease; }
-        button:hover { background-color: #303f9f; }
-        button:disabled { background-color: #9fa8da; cursor: not-allowed; }
-        #end-btn { background-color: #00796b; }
-        #end-btn:hover { background-color: #004d40; }
-        #report-btn { background-color: #d32f2f; }
-        #report-btn:hover { background-color: #b71c1c; }
-        #results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5em; margin-top: 1.5em; }
-        .result-card { border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
-        .result-card img { max-width: 100%; height: auto; display: block; }
-        .result-card p { padding: 1em; margin: 0; background: #fafafa; font-size: 0.9em; }
-        .spinner { margin: 2em auto; width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3f51b5; border-radius: 50%; animation: spin 1s linear infinite; display: none; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #status { text-align: center; margin-top: 1em; font-weight: 500; min-height: 1.2em; }
-        hr { border: none; height: 1px; background-color: #e0e0e0; margin: 2em 0; }
-    </style>
+  <!-- A1. 頁面設定與樣式區 -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WesmartAI - 圖像生成與創作歷程存證系統</title>
+  <style>
+    body { font-family: 'Noto Sans TC', sans-serif; background:#f4f6fa; color:#222; text-align:center; }
+    h1 { margin-top:20px; }
+    .container { max-width:900px; margin:0 auto; padding:20px; background:#fff; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    input, textarea, button { margin:10px 0; padding:8px; width:90%; border-radius:5px; border:1px solid #ccc; font-size:14px; }
+    button { background:#0033A0; color:white; cursor:pointer; width:40%; }
+    button:hover { background:#002070; }
+    img.preview { width:256px; margin-top:10px; border-radius:6px; box-shadow:0 0 5px rgba(0,0,0,0.2); }
+    .hash-block { text-align:left; margin:10px auto; background:#f8f9fc; padding:10px; border-radius:8px; border:1px solid #ddd; width:90%; }
+    .log-area { text-align:left; white-space:pre-line; background:#f9f9f9; border:1px solid #ddd; padding:10px; border-radius:6px; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>WesmartAI<br>圖像生成及創作歷程存證系統</h1>
-        
-        <h2>1. 生成預覽圖像</h2>
-        <div class="form-grid">
-            <div class="form-group full-width">
-                <label for="applicant_name">出證申請人名稱</label>
-                <input type="text" id="applicant_name" placeholder="請在此處輸入您的姓名或公司名稱">
-            </div>
-            <div class="form-group full-width">
-                <label for="prompt">輸入指令 (Prompt)</label>
-                <textarea id="prompt" placeholder="例如：A blue sports car" rows="3"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="seed">隨機種子 (Seed) (可選)</label>
-                <input type="text" id="seed" placeholder="留空則隨機生成">
-            </div>
-             <div class="form-group">
-                <label for="width">圖片寬度</label>
-                <input type="number" id="width" value="512">
-            </div>
-             <div class="form-group">
-                <label for="height">圖片高度</label>
-                <input type="number" id="height" value="512">
-            </div>
-            <div class="form-group full-width">
-                <button id="generate-btn">生成圖像</button>
-            </div>
-        </div>
-        
-        <div id="spinner" class="spinner"></div>
-        <div id="status"></div>
-        <div id="results-grid"></div>
+  <div class="container">
+    <!-- A2. 主容器區 -->
+    <h1>WesmartAI - 圖像生成與創作歷程存證系統</h1>
 
-        <hr>
+    <!-- A2-1. 使用者輸入區 -->
+    <input type="text" id="prompt" placeholder="輸入提示詞 (Prompt)">
+    <input type="text" id="seed" placeholder="輸入種子 (Seed，可留空自動生成)">
 
-        <h2>2. 結束任務並產出證據</h2>
-        <div class="form-group full-width">
-             <button id="end-btn" disabled>結束及下載原圖</button>
-        </div>
-        
-        <hr>
+    <!-- A2-2. 操作按鈕區 -->
+    <button id="generateBtn">生成</button>
+    <button id="finalizeBtn">封裝報告</button>
 
-        <h2>3. 生成 PDF 報告 (可選)</h2>
-        <div class="form-group full-width">
-             <button id="report-btn" disabled>下載 PDF 摘要報告</button>
-        </div>
-    </div>
+    <!-- A2-3. 結果顯示區 -->
+    <div id="output"></div>
+  </div>
 
-    <script>
-        const generateBtn = document.getElementById('generate-btn');
-        const endBtn = document.getElementById('end-btn');
-        const reportBtn = document.getElementById('report-btn');
-        const spinner = document.getElementById('spinner');
-        const statusEl = document.getElementById('status');
-        const resultsGrid = document.getElementById('results-grid');
+  <!-- A3. 腳本區：包含事件綁定、後端交互、顯示邏輯 -->
+  <script>
+    // === A3-1. 綁定生成按鈕 ===
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      const prompt = document.getElementById('prompt').value.trim();
+      const seed = document.getElementById('seed').value.trim() || crypto.randomUUID();
+      const output = document.getElementById('output');
+      output.innerHTML = '<p>⏳ 正在生成中...</p>';
 
-        function downloadFile(url) {
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = url.split('/').pop();
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+      // === A3-1a. 建立 FormData 以符合 Flask v2 接收邏輯 ===
+      const formData = new FormData();
+      formData.append('prompt', prompt);
+      formData.append('seed', seed);
+      formData.append('model', 'default-model');
+
+      try {
+        const res = await fetch('/generate', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) throw new Error('後端回傳錯誤: ' + res.status);
+
+        const data = await res.json();
+        if (data.status !== 'success') throw new Error('生成失敗: ' + (data.error || '未知錯誤'));
+
+        // === A3-1b. 顯示回傳結果（包含圖片預覽與 step_hash） ===
+        output.innerHTML = `
+          <div class='hash-block'>
+            <strong>✅ 生成成功</strong><br>
+            Prompt: ${data.record.prompt}<br>
+            Seed: ${data.record.seed}<br>
+            Step Hash: <code>${data.record.step_hash}</code><br>
+            <img class='preview' src='${data.record.image_url}' alt='生成預覽圖'>
+          </div>`;
+
+      } catch (err) {
+        console.error(err);
+        output.innerHTML = `<p style='color:red;'>❌ 錯誤: ${err.message}</p>`;
+      }
+    });
+
+    // === A3-2. 封裝報告按鈕 ===
+    document.getElementById('finalizeBtn').addEventListener('click', async () => {
+      const output = document.getElementById('output');
+      output.innerHTML += '<p>📦 正在封裝報告...</p>';
+
+      try {
+        const res = await fetch('/finalize_session', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.status === 'success') {
+          output.innerHTML += `
+            <div class='hash-block'>
+              <strong>📘 報告生成完成</strong><br>
+              Final Event Hash: <code>${data.final_event_hash}</code><br>
+              <a href='${data.report_url}' target='_blank'>下載報告 PDF</a>
+            </div>`;
+        } else {
+          throw new Error('封裝失敗: ' + (data.error || '未知錯誤'));
         }
-
-        // --- 步驟 1: 生成預覽 ---
-        generateBtn.addEventListener('click', async () => {
-            const applicantName = document.getElementById('applicant_name').value;
-            if (!applicantName) {
-                alert('請先填寫 申請人名稱！');
-                return;
-            }
-
-            const payload = {
-                prompt: document.getElementById('prompt').value,
-                seed: document.getElementById('seed').value,
-                width: document.getElementById('width').value,
-                height: document.getElementById('height').value,
-            };
-            if (!payload.prompt) {
-                alert('請填寫 Prompt！');
-                return;
-            }
-
-            spinner.style.display = 'block';
-            statusEl.textContent = '正在生成預覽圖...';
-            generateBtn.disabled = true;
-
-            try {
-                const response = await fetch('/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-                const result = await response.json();
-                
-                if (response.ok) {
-                    statusEl.textContent = `✅ 版本 ${result.version} 預覽圖生成成功。`;
-                    const card = document.createElement('div');
-                    card.className = 'result-card';
-                    card.innerHTML = `<img src="${result.preview_url}" alt="Preview ${result.version}"><p>版本 ${result.version}</p>`;
-                    resultsGrid.appendChild(card);
-                    endBtn.disabled = false;
-                } else {
-                    throw new Error(result.error || '預覽圖生成失敗');
-                }
-            } catch (error) {
-                statusEl.textContent = `❌ 錯誤: ${error.message}`;
-            } finally {
-                spinner.style.display = 'none';
-                generateBtn.disabled = false;
-            }
-        });
-
-        // --- 步驟 2: 結束並下載證據 ---
-        endBtn.addEventListener('click', async () => {
-            const applicantName = document.getElementById('applicant_name').value;
-             if (!applicantName) {
-                alert('請確認 申請人名稱 已填寫！');
-                return;
-            }
-
-            spinner.style.display = 'block';
-            statusEl.textContent = '正在結束任務並封裝所有證據...';
-            endBtn.disabled = true;
-            generateBtn.disabled = true;
-
-            try {
-                const response = await fetch('/finalize_session', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ applicant_name: applicantName }),
-                });
-                const result = await response.json();
-
-                if (response.ok) {
-                    statusEl.textContent = '✅ 證據已產出！將自動下載所有原圖...';
-                    result.image_urls.forEach(url => downloadFile(url));
-                    reportBtn.disabled = false;
-                } else {
-                    throw new Error(result.error || '結束任務失敗');
-                }
-            } catch (error) {
-                statusEl.textContent = `❌ 錯誤: ${error.message}`;
-                endBtn.disabled = false;
-                generateBtn.disabled = false;
-            } finally {
-                spinner.style.display = 'none';
-            }
-        });
-
-        // --- 步驟 3: 下載 PDF 報告 ---
-        reportBtn.addEventListener('click', async () => {
-            spinner.style.display = 'block';
-            statusEl.textContent = '正在生成 PDF 報告...';
-            reportBtn.disabled = true;
-
-            try {
-                const response = await fetch('/create_report', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                });
-                const result = await response.json();
-
-                if (response.ok) {
-                    statusEl.textContent = 'PDF 報告生成完畢，即將下載。';
-                    downloadFile(result.report_url);
-                } else {
-                    throw new Error(result.error || '報告生成失敗');
-                }
-            } catch (error) {
-                statusEl.textContent = `❌ 錯誤: ${error.message}`;
-            } finally {
-                spinner.style.display = 'none';
-                reportBtn.disabled = false;
-            }
-        });
-    </script>
+      } catch (err) {
+        console.error(err);
+        output.innerHTML += `<p style='color:red;'>❌ 錯誤: ${err.message}</p>`;
+      }
+    });
+  </script>
 </body>
 </html>
