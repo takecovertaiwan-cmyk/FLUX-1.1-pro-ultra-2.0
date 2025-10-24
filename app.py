@@ -233,29 +233,37 @@ def generate():
         return jsonify({"error": "Prompt 為必填項"}), 400
 
     try:
-        seed = int(data.get('seed', random.randint(1, 10**9)))
-        width, height = int(data.get('width', 1024)), int(data.get('height', 1024))
-
-        # E1-1. 呼叫 FLUX API
+        # === E1-1. 呼叫 FLUX API ===
         endpoint = "https://api.bfl.ai/v1/flux-pro-1.1-ultra"
-        headers = {"accept": "application/json", "x-key": API_key, "Content-Type": "application/json"}
-        payload = {"prompt": prompt, "width": width, "height": height, "seed": seed}
+        headers = {
+            "accept": "application/json",
+            "x-key": API_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "seed": seed
+        }
         res = requests.post(endpoint, headers=headers, json=payload, timeout=60)
         res.raise_for_status()
         polling_url = res.json().get('polling_url')
 
-        # E1-2. 輪詢取得圖像 URL
-        start = time.time(); image_url = None
+        # === E1-2. 輪詢取得圖像 URL ===
+        start = time.time()
+        image_url = None
         while time.time() - start < 120:
             poll = requests.get(polling_url, headers={"x-key": API_key}, timeout=30).json()
             if poll.get('status') == 'Ready':
-                image_url = poll['result']['sample']; break
+                image_url = poll['result']['sample']
+                break
             time.sleep(1)
 
         if not image_url:
             return jsonify({"error": "生成逾時"}), 500
 
-        # E1-3. 儲存預覽圖
+        # === E1-3. 儲存預覽圖 ===
         img_bytes = requests.get(image_url).content
         filename = f"preview_v{len(session_previews) + 1}_{int(time.time())}.png"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -273,11 +281,11 @@ def generate():
         return jsonify({
             "success": True,
             "preview_url": url_for('static_preview', filename=filename),
-            "version": len(session_previews)  # 新增版本索引供前端顯示
+            "version": len(session_previews)
         })
 
-except Exception as e:
-    return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # === E2. /finalize_session: 封存並生成 JSON ===
 @app.route('/finalize_session', methods=['POST'])
@@ -378,6 +386,7 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
 
