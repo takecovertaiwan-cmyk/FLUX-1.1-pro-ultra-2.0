@@ -84,6 +84,10 @@ def compute_step_hash(ts_iso: str, img_b64: str, prompt: str, seed: int) -> dict
     }
 
 # === C2. PDF 報告類別 ===
+from fpdf import FPDF
+from fpdf.enums import XPos, YPos
+import os, qrcode
+
 class WesmartPDFReport(FPDF):
     """生成 PDF 報告，包含封面、細節、驗證頁。"""
 
@@ -93,11 +97,13 @@ class WesmartPDFReport(FPDF):
         if not os.path.exists("NotoSansTC.otf"):
             print("下載中文字型...")
             try:
+                import requests
                 r = requests.get(
                     "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf"
                 )
                 r.raise_for_status()
-                with open("NotoSansTC.otf", "wb") as f: f.write(r.content)
+                with open("NotoSansTC.otf", "wb") as f:
+                    f.write(r.content)
             except Exception as e:
                 print(f"字型下載失敗: {e}")
         self.add_font("NotoSansTC", "", "NotoSansTC.otf")
@@ -105,7 +111,7 @@ class WesmartPDFReport(FPDF):
         self.alias_nb_pages()
         self.logo_path = "LOGO.jpg" if os.path.exists("LOGO.jpg") else None
 
-    # C2-2. 頁首 (Header)
+    # === C2-2. 頁首 (Header) ===
     def header(self):
         if self.logo_path:
             with self.local_context(fill_opacity=0.08, stroke_opacity=0.08):
@@ -116,64 +122,92 @@ class WesmartPDFReport(FPDF):
             self.set_text_color(128)
             self.cell(0, 10, "WesmartAI 生成式 AI 證據報告", new_x=XPos.LMARGIN, new_y=YPos.TOP, align='L')
 
-    # C2-3. 頁尾 (Footer)
+    # === C2-3. 頁尾 (Footer) ===
     def footer(self):
         self.set_y(-15)
         self.set_font("NotoSansTC", "", 8)
         self.set_text_color(128)
-        self.cell(0, 10, f'第 {self.page_no()}/{{nb}} 頁', align='C')
+        self.cell(0, 10, f"第 {self.page_no()}/{{nb}} 頁", align="C")
 
-    # C2-4. 章節標題
+    # === C2-4. 章節標題 ===
     def chapter_title(self, title):
         self.set_font("NotoSansTC", "", 16)
-        self.cell(0, 12, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
+        self.cell(0, 12, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
 
-    # C2-5. 章節內文
+    # === C2-5. 章節內文 ===
     def chapter_body(self, content):
         self.set_font("NotoSansTC", "", 10)
-        self.multi_cell(0, 7, content, align='L')
+        self.multi_cell(0, 7, str(content), align="L")
 
-    # C2-6. 封面頁
+    # === C2-6. 封面頁 ===
     def create_cover(self, meta):
         self.add_page()
-        if self.logo_path: self.image(self.logo_path, x=(self.w-60)/2, y=25, w=60)
+        if self.logo_path:
+            self.image(self.logo_path, x=(self.w - 60) / 2, y=25, w=60)
         self.set_y(100)
         self.set_font("NotoSansTC", "", 28)
-        self.cell(0, 20, "WesmartAI 證據報告", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+        self.cell(0, 20, "WesmartAI 證據報告", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+
         data = [
-            ("出證申請人:", meta.get('applicant', 'N/A')),
-            ("申請出證時間:", meta.get('issued_at', 'N/A')),
-            ("報告編號:", meta.get('report_id', 'N/A')),
-            ("出證單位:", meta.get('issuer', 'N/A'))
+            ("出證申請人:", meta.get("applicant", "N/A")),
+            ("申請出證時間:", meta.get("issued_at", "N/A")),
+            ("報告編號:", meta.get("report_id", "N/A")),
+            ("出證單位:", meta.get("issuer", "N/A")),
         ]
         for label, value in data:
             self.set_font("NotoSansTC", "", 12)
-            self.cell(45, 10, label, align='L')
-            self.multi_cell(0, 10, value, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
+            self.cell(45, 10, label, align="L")
+            self.multi_cell(0, 10, str(value), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
 
-    # C2-7. 任務細節頁
+    # === C2-7. 生成任務細節頁 ===
     def create_generation_details_page(self, proof_data):
         self.add_page()
         self.chapter_title("一、生成任務基本資訊")
-        meta = proof_data['event_proof']
-        for k, v in {"Trace Token": meta['trace_token'], "版本數": len(meta['snapshots'])}.items():
-            self.chapter_body(f"{k}: {v}")
+        snapshots = proof_data["event_proof"]["snapshots"]
+        self.chapter_body(f"版本數：{len(snapshots)}")
 
-        self.chapter_title("二、各版本快照")
-        for snap in meta['snapshots']:
-            self.chapter_body(f"版本索引: {snap['version_index']}")
-            self.chapter_body(f"時間戳記: {snap['timestamp_utc']}")
-            self.chapter_body(f"Prompt: {snap['prompt']}")
+        self.chapter_title("二、各版本快照與雜湊資訊")
+        for snap in snapshots:
+            self.chapter_body(f"版本索引：{snap['version_index']}")
+            self.chapter_body(f"時間戳記(UTC)：{snap['timestamp_utc']}")
+            self.chapter_body(f"Prompt：{snap['prompt']}")
+            self.chapter_body(f"Seed：{snap['seed']}")
 
-    # C2-8. 結論驗證頁
+            # 四重雜湊顯示
+            self.chapter_body(f"時間戳雜湊 (timestamp_hash)：{snap['timestamp_hash']}")
+            self.chapter_body(f"圖片雜湊 (image_hash)：{snap['image_hash']}")
+            self.chapter_body(f"提示詞雜湊 (prompt_hash)：{snap['prompt_hash']}")
+            self.chapter_body(f"種子雜湊 (seed_hash)：{snap['seed_hash']}")
+
+            # Step Hash 取代原 Trace Token
+            self.chapter_body(f"Step Hash (step_hash)：{snap['step_hash']}")
+            self.chapter_body(" ")
+
+    # === C2-8. 驗證頁 ===
     def create_conclusion_page(self, proof_data):
         self.add_page()
-        self.chapter_title("三、驗證")
-        self.chapter_body("以下為最終事件雜湊值，可用於驗證 JSON 檔一致性:")
-        self.multi_cell(0, 8, proof_data['event_proof']['final_event_hash'], border=1, align='C')
-        qr_data = proof_data['verification']['verify_url']
+        self.chapter_title("三、報告驗證")
+
+        desc = (
+            "本報告之真實性與完整性，係依據每一生成頁面所記錄之四重雜湊"
+            "（時間戳雜湊、圖片雜湊、提示詞雜湊與種子雜湊）逐步累積計算所得。\n"
+            "每頁四重雜湊經系統自動組合為單一 Step Hash，而所有 Step Hash 再依序整合為最終之 Final Event Hash。\n"
+            "Final Event Hash 為整份創作過程的唯一驗證憑證，代表該份報告內所有頁面與內容在生成當下的完整性。\n"
+            "任何後續對圖像、提示詞或時間資料的竄改，皆將導致對應之 Step Hash 與 Final Event Hash 不一致，可藉此進行真偽比對與法律層面的舉證。"
+        )
+        self.chapter_body(desc)
+
+        self.chapter_title("最終事件雜湊（Final Event Hash）")
+        self.multi_cell(
+            0, 8, proof_data["event_proof"]["final_event_hash"], border=1, align="C"
+        )
+
+        # 生成 QR Code（驗證連結）
+        qr_data = proof_data["verification"]["verify_url"]
         qr = qrcode.make(qr_data)
-        qr_path = os.path.join(app.config['UPLOAD_FOLDER'], f"qr_{proof_data['report_id'][:10]}.png")
+        qr_path = os.path.join(
+            app.config["UPLOAD_FOLDER"], f"qr_{proof_data['report_id'][:10]}.png"
+        )
         qr.save(qr_path)
         self.image(qr_path, w=50, x=(self.w - 50) / 2)
 
@@ -340,5 +374,6 @@ def static_download(filename):
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 
 
