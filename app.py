@@ -76,23 +76,16 @@ class WesmartPDFReport(FPDF):
         data = [("出證申請人:", meta.get('applicant', 'N/A')), ("申請事項:", "WesmartAI 生成式 AI 證據報告"), ("申請出證時間:", meta.get('issued_at', 'N/A')), ("出證編號 (報告ID):", meta.get('report_id', 'N/A')), ("出證單位:", meta.get('issuer', 'N/A'))]
         for row in data: self.cell(20); self.cell(45, 10, row[0], align='L'); self.multi_cell(0, 10, row[1], new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
     
-    # C2-7. 任務細節頁 (圖片放大 + 強制分頁)
+    # C2-7. 任務細節頁 (已更新雜湊邏輯)
     def create_generation_details_page(self, proof_data):
-        self.add_page(); # 建立第 2 頁 (或後續頁)
+        self.add_page();
         self.chapter_title("一、各版本生成快照")
         
-        is_first_snapshot = True # 追蹤迴圈的第一次
         for snapshot in proof_data['event_proof']['snapshots']:
-            
-            # 需求 #2: 每一版本強制分頁
-            # (如果不是第一張快照，就在顯示內容前強制換頁)
-            if not is_first_snapshot:
-                self.add_page() 
-            
             self.set_font("NotoSansTC", "", 12); self.set_text_color(0);
             self.cell(0, 10, f"版本索引: {snapshot['version_index']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L'); self.ln(2)
             
-            # 顯示 Step Hash
+            # 顯示 Step Hash (取代 Trace Token) (需求 #3)
             self.set_font("NotoSansTC", "", 10); self.set_text_color(0)
             self.cell(40, 8, "  Step Hash:", align='L');
             self.set_font("Courier", "", 9); self.set_text_color(80)
@@ -103,22 +96,21 @@ class WesmartPDFReport(FPDF):
             details = [
                 ("時間戳記 (UTC)", snapshot['timestamp_utc']),
                 ("輸入指令 (Prompt)", snapshot['prompt']),
-                ("隨機種子 (Seed)", str(snapshot['seed'])),
-                ("尺寸 (寬x高)", f"{snapshot['width']} x {snapshot['height']}")
+                ("隨機種子 (Seed)", str(snapshot['seed']))
             ]
             for key, value in details:
                 self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, f"  - {key}:", align='L');
                 self.set_font("NotoSansTC", "", 9); self.set_text_color(80)
                 self.multi_cell(0, 7, str(value), align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-            # 顯示六重雜湊 (File Hash)
+            # 顯示四重雜湊 (需求 #1)
             self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 時間戳雜湊:", align='L');
             self.set_font("Courier", "", 8); self.set_text_color(120)
             self.multi_cell(0, 7, snapshot['hashes']['timestamp_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             
-            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 檔案雜湊 (File):", align='L');
+            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 圖像雜湊:", align='L');
             self.set_font("Courier", "", 8); self.set_text_color(120)
-            self.multi_cell(0, 7, snapshot['hashes']['file_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            self.multi_cell(0, 7, snapshot['hashes']['image_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
             self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 指令雜湊:", align='L');
             self.set_font("Courier", "", 8); self.set_text_color(120)
@@ -128,37 +120,23 @@ class WesmartPDFReport(FPDF):
             self.set_font("Courier", "", 8); self.set_text_color(120)
             self.multi_cell(0, 7, snapshot['hashes']['seed_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             
-            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 寬度雜湊:", align='L');
-            self.set_font("Courier", "", 8); self.set_text_color(120)
-            self.multi_cell(0, 7, snapshot['hashes']['width_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 高度雜湊:", align='L');
-            self.set_font("Courier", "", 8); self.set_text_color(120)
-            self.multi_cell(0, 7, snapshot['hashes']['height_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            
-            # 顯示圖像 (需求 #1: 圖片等比放大)
+            # 顯示圖像
             self.ln(5)
             try:
                 img_bytes = base64.b64decode(snapshot['content_base64'])
                 img_file_obj = io.BytesIO(img_bytes)
-                
-                # 關鍵升級：計算頁面可用寬度並設定影像寬度
-                # (self.w = 頁面總寬, l_margin/r_margin 為左右邊界)
-                available_width = self.w - self.l_margin - self.r_margin
-                self.image(img_file_obj, w=available_width, type='PNG') # h=0 (預設) 會自動等比縮放
+                self.image(img_file_obj, x=(self.w-80)/2, w=80, type='PNG')
             except Exception as e: print(f"在PDF中顯示圖片失敗: {e}")
-            self.ln(5) # 縮小圖片後的間距
-
-            is_first_snapshot = False # 關閉旗標
+            self.ln(15)
     
-    # C2-8. 結論驗證頁 (已更新為六重 File Hash 說明)
+    # C2-8. 結論驗證頁 (已更新說明文字)
     def create_conclusion_page(self, proof_data):
         self.add_page(); self.chapter_title("三、報告驗證")
         
-        # 需求 #2: 更新說明文字
+        # 需求 #5: 更新說明文字
         self.chapter_body(
-            "本報告之真實性與完整性，係依據每一生成頁面所記錄之六重雜湊（時間戳雜湊、檔案雜湊、提示詞雜湊、種子雜湊、寬度雜湊與高度雜湊）逐步累積計算所得。\n" # <--- 關鍵升級
-            "每頁六重雜湊經系統自動組合為單一 Step Hash，而所有 Step Hash 再依序整合為最終之 Final Event Hash。\n"
+            "本報告之真實性與完整性，係依據每一生成頁面所記錄之四重雜湊（時間戳雜湊、圖片雜湊、提示詞雜湊與種子雜湊）逐步累積計算所得。\n"
+            "每頁四重雜湊經系統自動組合為單一 Step Hash，而所有 Step Hash 再依序整合為最終之 Final Event Hash。\n"
             "Final Event Hash 為整份創作過程的唯一驗證憑證，代表該份報告內所有頁面與內容在生成當下的完整性。\n"
             "任何後續對圖像、提示詞或時間資料的竄改，皆將導致對應之 Step Hash 與 Final Event Hash 不一致，可藉此進行真偽比對與法律層面的舉證。"
         )
@@ -247,26 +225,22 @@ def generate():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         Image.open(io.BytesIO(img_bytes)).save(filepath)
 
-        # E1-6. 產生六重雜湊與 Step Hash (最終版：使用 File Hash)
+        # E1-6. 產生四重雜湊與 Step Hash (需求 #1, #2)
         timestamp_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        img_base64_str = base64.b64encode(img_bytes).decode('utf-8') # 仍需 Base64 供 PDF 顯示
+        img_base64_str = base64.b64encode(img_bytes).decode('utf-8')
 
-        # 1. 六重雜湊 (File Hash 取代 Image Hash)
+        # 1. 四重雜湊
         timestamp_hash = sha256_bytes(timestamp_utc.encode('utf-8'))
+        image_hash = sha256_bytes(img_base64_str.encode('utf-8')) # 對 Base64 字串雜湊
         prompt_hash = sha256_bytes(prompt.encode('utf-8'))
         seed_hash = sha256_bytes(str(seed_value).encode('utf-8'))
-        width_hash = sha256_bytes(str(width).encode('utf-8'))
-        height_hash = sha256_bytes(str(height).encode('utf-8'))
-        file_hash = sha256_bytes(img_bytes) # <--- 關鍵升級：對原始二進位檔案雜湊
 
         # 2. 打包生成 Step Hash
         step_hash_input = json.dumps({
             "timestamp_hash": timestamp_hash,
+            "image_hash": image_hash,
             "prompt_hash": prompt_hash,
-            "seed_hash": seed_hash,
-            "width_hash": width_hash,
-            "height_hash": height_hash,
-            "file_hash": file_hash  # <--- 關鍵升級
+            "seed_hash": seed_hash
         }, sort_keys=True).encode('utf-8')
         step_hash = sha256_bytes(step_hash_input)
 
@@ -275,14 +249,12 @@ def generate():
             "prompt": prompt, "seed": seed_value, "model": "flux-pro-1.1-ultra",
             "width": width, "height": height, "filepath": filepath,
             "timestamp_utc": timestamp_utc,
-            "content_base64": img_base64_str, # 供 PDF 顯示
+            "content_base64": img_base64_str, # 直接暫存 Base64，供 E2 使用
             "hashes": {
                 "timestamp_hash": timestamp_hash,
+                "image_hash": image_hash,
                 "prompt_hash": prompt_hash,
                 "seed_hash": seed_hash,
-                "width_hash": width_hash,
-                "height_hash": height_hash,
-                "file_hash": file_hash, # <--- 關鍵升級
                 "step_hash": step_hash
             }
         })
@@ -311,7 +283,7 @@ def finalize_session():
         snapshots = []
         image_urls = []
         
-        # E2-1. 迭代所有預覽圖快照 (已包含雜湊)
+       # E2-1. 迭代所有預覽圖快照 (已包含雜湊)
         for i, preview in enumerate(session_previews):
             snapshots.append({
                 "version_index": i + 1,
@@ -319,9 +291,7 @@ def finalize_session():
                 "prompt": preview['prompt'],
                 "seed": preview['seed'],
                 "model": preview['model'],
-                "width": preview['width'],   # <--- (修正) 補上寬度
-                "height": preview['height'], # <--- (修正) 補上高度
-                "hashes": preview['hashes'], # 包含六重雜湊 + Step Hash
+                "hashes": preview['hashes'], # 包含四重雜湊 + Step Hash
                 "content_base64": preview['content_base64']
             })
             image_urls.append(url_for('static_download', filename=os.path.basename(preview['filepath'])))
@@ -397,9 +367,6 @@ def static_download(filename): return send_from_directory(app.config['UPLOAD_FOL
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True)
-
-
-
 
 
 
