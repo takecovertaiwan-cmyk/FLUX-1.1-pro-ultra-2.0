@@ -76,12 +76,19 @@ class WesmartPDFReport(FPDF):
         data = [("出證申請人:", meta.get('applicant', 'N/A')), ("申請事項:", "WesmartAI 生成式 AI 證據報告"), ("申請出證時間:", meta.get('issued_at', 'N/A')), ("出證編號 (報告ID):", meta.get('report_id', 'N/A')), ("出證單位:", meta.get('issuer', 'N/A'))]
         for row in data: self.cell(20); self.cell(45, 10, row[0], align='L'); self.multi_cell(0, 10, row[1], new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
     
-    # C2-7. 任務細節頁 (已更新為六重 File Hash)
+    # C2-7. 任務細節頁 (圖片放大 + 強制分頁)
     def create_generation_details_page(self, proof_data):
-        self.add_page();
+        self.add_page(); # 建立第 2 頁 (或後續頁)
         self.chapter_title("一、各版本生成快照")
         
+        is_first_snapshot = True # 追蹤迴圈的第一次
         for snapshot in proof_data['event_proof']['snapshots']:
+            
+            # 需求 #2: 每一版本強制分頁
+            # (如果不是第一張快照，就在顯示內容前強制換頁)
+            if not is_first_snapshot:
+                self.add_page() 
+            
             self.set_font("NotoSansTC", "", 12); self.set_text_color(0);
             self.cell(0, 10, f"版本索引: {snapshot['version_index']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L'); self.ln(2)
             
@@ -104,14 +111,14 @@ class WesmartPDFReport(FPDF):
                 self.set_font("NotoSansTC", "", 9); self.set_text_color(80)
                 self.multi_cell(0, 7, str(value), align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-            # 顯示六重雜湊 (File Hash 取代 Image Hash)
+            # 顯示六重雜湊 (File Hash)
             self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 時間戳雜湊:", align='L');
             self.set_font("Courier", "", 8); self.set_text_color(120)
             self.multi_cell(0, 7, snapshot['hashes']['timestamp_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             
-            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 檔案雜湊 (File):", align='L'); # <--- 關鍵升級
+            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 檔案雜湊 (File):", align='L');
             self.set_font("Courier", "", 8); self.set_text_color(120)
-            self.multi_cell(0, 7, snapshot['hashes']['file_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT) # <--- 關鍵升級
+            self.multi_cell(0, 7, snapshot['hashes']['file_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
             self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 指令雜湊:", align='L');
             self.set_font("Courier", "", 8); self.set_text_color(120)
@@ -129,14 +136,20 @@ class WesmartPDFReport(FPDF):
             self.set_font("Courier", "", 8); self.set_text_color(120)
             self.multi_cell(0, 7, snapshot['hashes']['height_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             
-            # 顯示圖像
+            # 顯示圖像 (需求 #1: 圖片等比放大)
             self.ln(5)
             try:
                 img_bytes = base64.b64decode(snapshot['content_base64'])
                 img_file_obj = io.BytesIO(img_bytes)
-                self.image(img_file_obj, x=(self.w-80)/2, w=80, type='PNG')
+                
+                # 關鍵升級：計算頁面可用寬度並設定影像寬度
+                # (self.w = 頁面總寬, l_margin/r_margin 為左右邊界)
+                available_width = self.w - self.l_margin - self.r_margin
+                self.image(img_file_obj, w=available_width, type='PNG') # h=0 (預設) 會自動等比縮放
             except Exception as e: print(f"在PDF中顯示圖片失敗: {e}")
-            self.ln(15)
+            self.ln(5) # 縮小圖片後的間距
+
+            is_first_snapshot = False # 關閉旗標
     
     # C2-8. 結論驗證頁 (已更新為六重 File Hash 說明)
     def create_conclusion_page(self, proof_data):
@@ -384,6 +397,7 @@ def static_download(filename): return send_from_directory(app.config['UPLOAD_FOL
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True)
+
 
 
 
