@@ -76,21 +76,51 @@ class WesmartPDFReport(FPDF):
         data = [("出證申請人:", meta.get('applicant', 'N/A')), ("申請事項:", "WesmartAI 生成式 AI 證據報告"), ("申請出證時間:", meta.get('issued_at', 'N/A')), ("出證編號 (報告ID):", meta.get('report_id', 'N/A')), ("出證單位:", meta.get('issuer', 'N/A'))]
         for row in data: self.cell(20); self.cell(45, 10, row[0], align='L'); self.multi_cell(0, 10, row[1], new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
     
-    # C2-7. 任務細節頁
+    # C2-7. 任務細節頁 (已更新雜湊邏輯)
     def create_generation_details_page(self, proof_data):
-        self.add_page(); self.chapter_title("一、生成任務基本資訊"); self.set_font("NotoSansTC", "", 10); self.set_text_color(0)
-        experiment_meta = {"Trace Token": proof_data['event_proof']['trace_token'], "總共版本數": len(proof_data['event_proof']['snapshots'])}
-        for key, value in experiment_meta.items():
-            self.cell(40, 8, f"  {key}:", align='L'); self.set_font("NotoSansTC", "", 9); self.set_text_color(80)
-            self.multi_cell(0, 8, str(value), align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT); self.set_font("NotoSansTC", "", 10); self.set_text_color(0)
-        self.ln(10)
-        self.chapter_title("二、各版本生成快照")
+        self.add_page();
+        self.chapter_title("一、各版本生成快照")
+        
         for snapshot in proof_data['event_proof']['snapshots']:
-            self.set_font("NotoSansTC", "", 12); self.set_text_color(0); self.cell(0, 10, f"版本索引: {snapshot['version_index']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L'); self.ln(2)
-            details = [("時間戳記 (UTC)", snapshot['timestamp_utc']), ("圖像雜湊 (SHA-256 over Base64)", snapshot['snapshot_hash']), ("輸入指令 (Prompt)", snapshot['prompt']), ("隨機種子 (Seed)", str(snapshot['seed']))]
+            self.set_font("NotoSansTC", "", 12); self.set_text_color(0);
+            self.cell(0, 10, f"版本索引: {snapshot['version_index']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L'); self.ln(2)
+            
+            # 顯示 Step Hash (取代 Trace Token) (需求 #3)
+            self.set_font("NotoSansTC", "", 10); self.set_text_color(0)
+            self.cell(40, 8, "  Step Hash:", align='L');
+            self.set_font("Courier", "", 9); self.set_text_color(80)
+            self.multi_cell(0, 8, snapshot['hashes']['step_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            self.ln(2)
+
+            # 顯示基本資料
+            details = [
+                ("時間戳記 (UTC)", snapshot['timestamp_utc']),
+                ("輸入指令 (Prompt)", snapshot['prompt']),
+                ("隨機種子 (Seed)", str(snapshot['seed']))
+            ]
             for key, value in details:
-                self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, f"  - {key}:", align='L'); self.set_font("NotoSansTC", "", 9); self.set_text_color(80)
+                self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, f"  - {key}:", align='L');
+                self.set_font("NotoSansTC", "", 9); self.set_text_color(80)
                 self.multi_cell(0, 7, str(value), align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+            # 顯示四重雜湊 (需求 #1)
+            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 時間戳雜湊:", align='L');
+            self.set_font("Courier", "", 8); self.set_text_color(120)
+            self.multi_cell(0, 7, snapshot['hashes']['timestamp_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            
+            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 圖像雜湊:", align='L');
+            self.set_font("Courier", "", 8); self.set_text_color(120)
+            self.multi_cell(0, 7, snapshot['hashes']['image_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 指令雜湊:", align='L');
+            self.set_font("Courier", "", 8); self.set_text_color(120)
+            self.multi_cell(0, 7, snapshot['hashes']['prompt_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+            self.set_font("NotoSansTC", "", 10); self.set_text_color(0); self.cell(60, 7, "  - 種子雜湊:", align='L');
+            self.set_font("Courier", "", 8); self.set_text_color(120)
+            self.multi_cell(0, 7, snapshot['hashes']['seed_hash'], align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            
+            # 顯示圖像
             self.ln(5)
             try:
                 img_bytes = base64.b64decode(snapshot['content_base64'])
@@ -99,10 +129,18 @@ class WesmartPDFReport(FPDF):
             except Exception as e: print(f"在PDF中顯示圖片失敗: {e}")
             self.ln(15)
     
-    # C2-8. 結論驗證頁
+    # C2-8. 結論驗證頁 (已更新說明文字)
     def create_conclusion_page(self, proof_data):
         self.add_page(); self.chapter_title("三、報告驗證")
-        self.chapter_body("本報告的真實性與完整性，取決於其對應的 `proof_event.json` 證據檔案。此 JSON 檔案的雜湊值（Final Event Hash）被記錄於下，可用於比對與驗證。")
+        
+        # 需求 #5: 更新說明文字
+        self.chapter_body(
+            "本報告之真實性與完整性，係依據每一生成頁面所記錄之四重雜湊（時間戳雜湊、圖片雜湊、提示詞雜湊與種子雜湊）逐步累積計算所得。\n"
+            "每頁四重雜湊經系統自動組合為單一 Step Hash，而所有 Step Hash 再依序整合為最終之 Final Event Hash。\n"
+            "Final Event Hash 為整份創作過程的唯一驗證憑證，代表該份報告內所有頁面與內容在生成當下的完整性。\n"
+            "任何後續對圖像、提示詞或時間資料的竄改，皆將導致對應之 Step Hash 與 Final Event Hash 不一致，可藉此進行真偽比對與法律層面的舉證。"
+        )
+        
         self.ln(10); self.set_font("NotoSansTC", "", 12); self.set_text_color(0)
         self.cell(0, 10, "最終事件雜湊值 (Final Event Hash):", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.set_font("Courier", "B", 11)
@@ -136,10 +174,10 @@ def generate():
         return jsonify({"error": "Prompt 為必填項"}), 400
 
     try:
-        # E1-0. 獲取前端參數
+        # E1-0. 獲取前端參數 (尺寸已固定)
         seed_input = data.get('seed')
-        width = int(data.get('width', 1024))
-        height = int(data.get('height', 1024))
+        width = 2752
+        height = 1536
         seed_value = int(seed_input) if seed_input and seed_input.isdigit() else random.randint(1, 10**9)
         
         # E1-1. 提交生成任務到 FLUX API
@@ -180,15 +218,45 @@ def generate():
         # E1-3. 從返回的 URL 下載圖片
         img_bytes = requests.get(image_url, timeout=60).content
         
-        # E1-4. 儲存預覽圖並暫存紀錄
+        # E1-4. 從返回的 URL 下載圖片
+        
+        # E1-5. 儲存預覽圖檔案
         filename = f"preview_v{len(session_previews) + 1}_{int(time.time())}.png"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         Image.open(io.BytesIO(img_bytes)).save(filepath)
 
+        # E1-6. 產生四重雜湊與 Step Hash (需求 #1, #2)
+        timestamp_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        img_base64_str = base64.b64encode(img_bytes).decode('utf-8')
+
+        # 1. 四重雜湊
+        timestamp_hash = sha256_bytes(timestamp_utc.encode('utf-8'))
+        image_hash = sha256_bytes(img_base64_str.encode('utf-8')) # 對 Base64 字串雜湊
+        prompt_hash = sha256_bytes(prompt.encode('utf-8'))
+        seed_hash = sha256_bytes(str(seed_value).encode('utf-8'))
+
+        # 2. 打包生成 Step Hash
+        step_hash_input = json.dumps({
+            "timestamp_hash": timestamp_hash,
+            "image_hash": image_hash,
+            "prompt_hash": prompt_hash,
+            "seed_hash": seed_hash
+        }, sort_keys=True).encode('utf-8')
+        step_hash = sha256_bytes(step_hash_input)
+
+        # E1-7. 暫存所有紀錄
         session_previews.append({
             "prompt": prompt, "seed": seed_value, "model": "flux-pro-1.1-ultra",
             "width": width, "height": height, "filepath": filepath,
-            "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            "timestamp_utc": timestamp_utc,
+            "content_base64": img_base64_str, # 直接暫存 Base64，供 E2 使用
+            "hashes": {
+                "timestamp_hash": timestamp_hash,
+                "image_hash": image_hash,
+                "prompt_hash": prompt_hash,
+                "seed_hash": seed_hash,
+                "step_hash": step_hash
+            }
         })
         
         return jsonify({
@@ -196,11 +264,6 @@ def generate():
             "preview_url": url_for('static_preview', filename=filename),
             "version": len(session_previews)
         })
-
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"網路請求失敗: {str(e)}"}), 500
-    except Exception as e:
-        return jsonify({"error": f"生成過程中發生未知錯誤: {str(e)}"}), 500
 
 # === E2. /finalize_session: 步驟2: 結束任務，生成所有證據正本 ===
 @app.route('/finalize_session', methods=['POST'])
@@ -214,33 +277,38 @@ def finalize_session():
         snapshots = []
         image_urls = []
         
-        # E2-1. 迭代所有預覽圖，生成快照 (含 Base64)
+       # E2-1. 迭代所有預覽圖快照 (已包含雜湊)
         for i, preview in enumerate(session_previews):
-            with open(preview['filepath'], "rb") as f: definitive_bytes = f.read()
-            img_base64_str = base64.b64encode(definitive_bytes).decode('utf-8')
-            snapshot_hash = sha256_bytes(img_base64_str.encode('utf-8'))
-            
             snapshots.append({
-                "version_index": i + 1, "timestamp_utc": preview['timestamp_utc'],
-                "snapshot_hash": snapshot_hash, "prompt": preview['prompt'],
-                "seed": preview['seed'], "model": preview['model'],
-                "content_base64": img_base64_str
+                "version_index": i + 1,
+                "timestamp_utc": preview['timestamp_utc'],
+                "prompt": preview['prompt'],
+                "seed": preview['seed'],
+                "model": preview['model'],
+                "hashes": preview['hashes'], # 包含四重雜湊 + Step Hash
+                "content_base64": preview['content_base64']
             })
             image_urls.append(url_for('static_download', filename=os.path.basename(preview['filepath'])))
 
-        # E2-2. 產生報告 ID, Token, 最終雜湊
+        # E2-2. 產生報告 ID 與 Final Event Hash (需求 #4)
         report_id = str(uuid.uuid4())
-        trace_token = str(uuid.uuid4())
         issued_at_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         
-        temp_proof_for_hashing = {"report_id": report_id, "event_proof": {"trace_token": trace_token, "snapshots": snapshots}}
-        proof_string_for_hashing = json.dumps(temp_proof_for_hashing, sort_keys=True, ensure_ascii=False).encode('utf-8')
-        final_event_hash = sha256_bytes(proof_string_for_hashing)
+        # 需求 #4: 每個頁面step hash 最後打包成為 final event_hash
+        all_step_hashes = [s['hashes']['step_hash'] for s in snapshots]
+        final_hash_input = json.dumps(all_step_hashes, sort_keys=True).encode('utf-8')
+        final_event_hash = sha256_bytes(final_hash_input)
+
+        # 移除舊的 trace_token (已被 step_hash 取代)
+        # temp_proof_for_hashing ... (此段已不需要)
 
         # E2-3. 組合並儲存 JSON 證據正本
         proof_data = {
             "report_id": report_id, "issuer": "WesmartAI Inc.", "applicant": applicant_name, "issued_at": issued_at_iso,
-            "event_proof": { "trace_token": trace_token, "final_event_hash": final_event_hash, "snapshots": snapshots },
+            "event_proof": {
+                "final_event_hash": final_event_hash,
+                "snapshots": snapshots # Snapshots 現在已包含所有 hashes
+            },
             "verification": {"verify_url": f"https://wesmart.ai/verify?hash={final_event_hash}"}
         }
 
@@ -293,3 +361,4 @@ def static_download(filename): return send_from_directory(app.config['UPLOAD_FOL
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True)
+
