@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WesmartAI<br>圖像生成及創作歷程存證系統</title>
     
-    <style>
+<style>
         /* B2-1. 基礎與容器樣式 */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 2em; background-color: #f4f6f8; color: #333; }
         .container { max-width: 900px; margin: auto; background: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -44,7 +44,7 @@
     <div class="container">
         <h1>WesmartAI<br>圖像生成及創作歷程存證系統</h1>
         
-        <h2>1. 生成預覽圖像</h2>
+<h2>1. 生成預覽圖像</h2>
         <div class="form-grid">
             <div class="form-group full-width">
                 <label for="applicant_name">出證申請人名稱</label>
@@ -59,12 +59,12 @@
                 <input type="text" id="seed" placeholder="留空則隨機生成">
             </div>
              <div class="form-group">
-                <label for="width">圖片寬度</label>
-                <input type="number" id="width" value="512">
+                <label for="width">圖片寬度 (固定)</label>
+                <input type="number" id="width" value="2752" readonly style="background-color: #eee;">
             </div>
              <div class="form-group">
-                <label for="height">圖片高度</label>
-                <input type="number" id="height" value="512">
+                <label for="height">圖片高度 (固定)</label>
+                <input type="number" id="height" value="1536" readonly style="background-color: #eee;">
             </div>
             <div class="form-group full-width">
                 <button id="generate-btn">生成圖像</button>
@@ -118,12 +118,10 @@
                 return;
             }
 
-            // D2-2. 準備 API 需要的 Payload (Prompt, Seed, 尺寸)
+            // D2-2. 準備 API 需要的 Payload (Prompt, Seed)
             const payload = {
                 prompt: document.getElementById('prompt').value,
                 seed: document.getElementById('seed').value,
-                width: document.getElementById('width').value,
-                height: document.getElementById('height').value,
             };
             if (!payload.prompt) {
                 alert('請填寫 Prompt！');
