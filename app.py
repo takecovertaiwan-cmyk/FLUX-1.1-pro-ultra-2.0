@@ -244,7 +244,7 @@ def generate():
         }, sort_keys=True).encode('utf-8')
         step_hash = sha256_bytes(step_hash_input)
 
-        # E1-7. 暫存所有紀錄
+        # E1-7. 暫存所有紀錄 (並包含錯誤修正)
         session_previews.append({
             "prompt": prompt, "seed": seed_value, "model": "flux-pro-1.1-ultra",
             "width": width, "height": height, "filepath": filepath,
@@ -265,7 +265,7 @@ def generate():
             "version": len(session_previews)
         })
 
-        # === [E1-EXCEPT] 錯誤處理 (修復 SyntaxError) ===
+    # === [E1-EXCEPT] 錯誤處理 (修復 SyntaxError) ===
     except requests.exceptions.RequestException as e:
         return jsonify({"error": f"網路請求失敗: {str(e)}"}), 500
     except Exception as e:
@@ -367,5 +367,6 @@ def static_download(filename): return send_from_directory(app.config['UPLOAD_FOL
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True)
+
 
 
