@@ -271,7 +271,7 @@ def generate():
     except Exception as e:
         return jsonify({"error": f"生成過程中發生未知錯誤: {str(e)}"}), 500
 
-       # === E2. /finalize_session: 步驟2: 結束任務，生成所有證據正本 ===
+# === E2. /finalize_session: 步驟2: 結束任務，生成所有證據正本 ===
 @app.route('/finalize_session', methods=['POST'])
 def finalize_session():
     global latest_proof_data, session_previews
@@ -367,6 +367,7 @@ def static_download(filename): return send_from_directory(app.config['UPLOAD_FOL
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True)
+
 
 
 
