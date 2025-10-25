@@ -298,7 +298,7 @@ def finalize_session():
         snapshots = []
         image_urls = []
         
-       # E2-1. 迭代所有預覽圖快照 (已包含雜湊)
+        # E2-1. 迭代所有預覽圖快照 (已包含雜湊)
         for i, preview in enumerate(session_previews):
             snapshots.append({
                 "version_index": i + 1,
@@ -306,7 +306,9 @@ def finalize_session():
                 "prompt": preview['prompt'],
                 "seed": preview['seed'],
                 "model": preview['model'],
-                "hashes": preview['hashes'], # 包含四重雜湊 + Step Hash
+                "width": preview['width'],   # <--- (修正) 補上寬度
+                "height": preview['height'], # <--- (修正) 補上高度
+                "hashes": preview['hashes'], # 包含六重雜湊 + Step Hash
                 "content_base64": preview['content_base64']
             })
             image_urls.append(url_for('static_download', filename=os.path.basename(preview['filepath'])))
@@ -382,6 +384,7 @@ def static_download(filename): return send_from_directory(app.config['UPLOAD_FOL
 # === G. 啟動服務 ===
 if __name__ == '__main__':
     app.run(debug=True)
+
 
 
 
